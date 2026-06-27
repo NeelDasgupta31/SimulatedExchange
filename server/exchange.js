@@ -16,6 +16,7 @@ class Exchange {
     this.positionLimit = 10;
     this.tickSize = 0.1;
     this.recentTrades = [];
+    this.lastTradedPrice = new Map(); // productId -> last trade price
     this.newsItems = [];
     this.roundActive = false;
     this.roundName = '';
@@ -43,6 +44,7 @@ class Exchange {
     this.books.clear();
     this.positions.clear();
     this.recentTrades = [];
+    this.lastTradedPrice.clear();
     this.newsItems = [];
     this.roundName = roundName || 'ROUND';
     this.roundActive = true;
@@ -140,6 +142,7 @@ class Exchange {
         buyVolume: 0, sellVolume: 0,
         avgBuy: 0, avgSell: 0,
         totalBuyCost: 0, totalSellRevenue: 0,
+        realizedPnl: 0,
       });
     }
     return this.positions.get(key);
@@ -148,13 +151,24 @@ class Exchange {
   _applyTrades(trades) {
     for (const { productId, price, volume, buyerId, sellerId } of trades) {
       const bp = this._getOrCreatePosition(buyerId, productId);
+      // If we're buying into a short, realize PnL on the covered portion
+      if (bp.net < 0) {
+        const covered = Math.min(volume, -bp.net);
+        bp.realizedPnl += covered * (bp.avgSell - price);
+      }
       bp.totalBuyCost += price * volume; bp.buyVolume += volume;
       bp.avgBuy = bp.totalBuyCost / bp.buyVolume; bp.net += volume;
 
       const sp = this._getOrCreatePosition(sellerId, productId);
+      // If we're selling into a long, realize PnL on the closed portion
+      if (sp.net > 0) {
+        const closed = Math.min(volume, sp.net);
+        sp.realizedPnl += closed * (price - sp.avgBuy);
+      }
       sp.totalSellRevenue += price * volume; sp.sellVolume += volume;
       sp.avgSell = sp.totalSellRevenue / sp.sellVolume; sp.net -= volume;
 
+      this.lastTradedPrice.set(productId, price);
       this.recentTrades.unshift({ productId, price, volume, buyerId, sellerId, timestamp: Date.now() });
     }
     if (this.recentTrades.length > 500) this.recentTrades.length = 500;
@@ -213,23 +227,34 @@ class Exchange {
     }
   }
 
+  _positionPnl(pos, market) {
+    // Realized PnL from closed round-trips
+    let pnl = pos.realizedPnl || 0;
+    // Unrealized PnL on open net position
+    if (pos.net !== 0) {
+      let mark;
+      if (market?.revealed) {
+        mark = market.settlementValue ?? 0;
+      } else {
+        // Use last traded price, fall back to mid, then initialMidPrice
+        const ltp = this.lastTradedPrice.get(pos.productId);
+        const book = this.books.get(pos.productId);
+        const bid = book?.getBestBid(), ask = book?.getBestAsk();
+        const mid = (bid != null && ask != null) ? (bid + ask) / 2 : null;
+        mark = ltp ?? mid ?? (market?.initialMidPrice ?? 0);
+      }
+      const avgEntry = pos.net > 0 ? pos.avgBuy : pos.avgSell;
+      pnl += pos.net * (mark - avgEntry);
+    }
+    return pnl;
+  }
+
   _computePnl(traderId) {
     let total = 0;
     for (const [key, pos] of this.positions) {
       if (!key.startsWith(traderId + ':')) continue;
       const market = this.markets.get(pos.productId);
-      if (!market) continue;
-      if (market.revealed) {
-        const sv = market.settlementValue ?? 0;
-        const avgEntry = pos.net > 0 ? pos.avgBuy : pos.avgSell;
-        total += pos.net * (sv - avgEntry);
-      } else {
-        const book = this.books.get(pos.productId);
-        const bid = book?.getBestBid(), ask = book?.getBestAsk();
-        const mid = (bid != null && ask != null) ? (bid + ask) / 2 : (market.initialMidPrice ?? 0);
-        const avgEntry = pos.net > 0 ? pos.avgBuy : (pos.avgSell || mid);
-        total += pos.net * (mid - avgEntry);
-      }
+      total += this._positionPnl(pos, market);
     }
     return Math.round(total * 100) / 100;
   }
@@ -268,14 +293,11 @@ class Exchange {
       const market = this.markets.get(pos.productId);
       const book = this.books.get(pos.productId);
       const bid = book?.getBestBid(), ask = book?.getBestAsk();
-      const mid = (bid != null && ask != null) ? (bid + ask) / 2 : (market?.initialMidPrice ?? 0);
-      const sv = market?.revealed ? (market.settlementValue ?? 0) : mid;
-      const avgEntry = pos.net > 0 ? pos.avgBuy : (pos.avgSell || mid);
       myPositions.push({
         productId: pos.productId, productName: market?.name || pos.productId, productType: market?.type,
         net: pos.net, avgBuy: Math.round(pos.avgBuy * 100) / 100, avgSell: Math.round(pos.avgSell * 100) / 100,
         buyVolume: pos.buyVolume, sellVolume: pos.sellVolume,
-        unrealizedPnl: Math.round(pos.net * (sv - avgEntry) * 100) / 100,
+        unrealizedPnl: Math.round(this._positionPnl(pos, market) * 100) / 100,
       });
     }
 
