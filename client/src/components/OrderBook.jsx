@@ -111,9 +111,9 @@ export function OrderBook({ market, book, position, onPlaceOrder, activeOrders =
     }
   }
 
+  // Only auto-scroll on initial load (when market first appears)
   useEffect(() => {
-    const prev = prevMidRef.current;
-    if (prev == null || Math.abs(midTick - prev) > 2 * INV) {
+    if (prevMidRef.current == null) {
       prevMidRef.current = midTick;
       setTickBounds({ top: midTick + INIT_RANGE, bot: midTick - INIT_RANGE });
       requestAnimationFrame(() => {
