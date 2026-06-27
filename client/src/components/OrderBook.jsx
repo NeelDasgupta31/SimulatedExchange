@@ -41,7 +41,7 @@ const INIT_RANGE = 100;
 const EXTEND = 80;
 const ROW_H = 20; // taller rows = slower-feeling scroll
 
-export function OrderBook({ market, book, position, onPlaceOrder, activeOrders = [], onCancel, positionLimit, tickSize = 0.1 }) {
+export function OrderBook({ market, book, position, onPlaceOrder, activeOrders = [], onCancel, positionLimit }) {
   const [volume, setVolume] = useState(1);
   const [tickBounds, setTickBounds] = useState(null);
   const midRowRef = useRef(null);
@@ -50,6 +50,8 @@ export function OrderBook({ market, book, position, onPlaceOrder, activeOrders =
   const marketIdRef = useRef(null);
 
   if (!market) return null;
+
+  const tickSize = market.tickSize ?? 0.1;
 
   const cancelSide = useCallback((side) => {
     for (const o of activeOrders) {

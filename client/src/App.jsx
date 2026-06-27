@@ -185,7 +185,6 @@ export default function App() {
                     activeOrders={activeOrders.filter(o => o.productId === market.id)}
                     onCancel={cancelOrder}
                     positionLimit={positionLimit}
-                    tickSize={tickSize || 0.1}
                   />
                 </div>
               ))}

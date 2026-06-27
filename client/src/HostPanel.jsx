@@ -21,7 +21,7 @@ const section = { background: BG2, border: `1px solid ${BORDER}`, padding: 16, m
 const OPTION_TYPES = new Set(['call', 'put', 'straddle', 'strangle', 'call_spread', 'put_spread']);
 const COMBO_TYPES = new Set(['diff', 'sum', 'max_of', 'min_of']);
 
-const DEFAULT_FORM = { type: 'underlying', name: '', refPrice: '', unit: '', underlyingId: '', strike: '', lowerStrike: '', upperStrike: '', leg1Id: '', leg2Id: '' };
+const DEFAULT_FORM = { type: 'underlying', name: '', refPrice: '', tickSize: '', unit: '', underlyingId: '', strike: '', lowerStrike: '', upperStrike: '', leg1Id: '', leg2Id: '' };
 
 function Row({ children, gap = 8, style = {} }) {
   return <div style={{ display: 'grid', gridTemplateColumns: `repeat(${React.Children.count(children)}, 1fr)`, gap, ...style }}>{children}</div>;
@@ -69,6 +69,7 @@ export function HostPanel() {
 
     const m = { ...f, id: `m${Date.now()}` };
     if (m.refPrice) m.refPrice = parseFloat(m.refPrice);
+    if (m.tickSize) m.tickSize = parseFloat(m.tickSize);
     if (m.strike) m.strike = parseFloat(m.strike);
     if (m.lowerStrike) m.lowerStrike = parseFloat(m.lowerStrike);
     if (m.upperStrike) m.upperStrike = parseFloat(m.upperStrike);
@@ -188,11 +189,16 @@ export function HostPanel() {
                 </select>
               </Field>
 
-              <Field label="Name">
-                <input value={form.name} onChange={e => setF('name', e.target.value)}
-                  placeholder={form.type === 'underlying' ? 'e.g. Apple Stock Price' : 'e.g. AAPL Call $180'}
-                  style={inp} />
-              </Field>
+              <Row>
+                <Field label="Name">
+                  <input value={form.name} onChange={e => setF('name', e.target.value)}
+                    placeholder={form.type === 'underlying' ? 'e.g. Apple Stock Price' : 'e.g. AAPL Call $180'}
+                    style={inp} />
+                </Field>
+                <Field label="Tick Size (leave blank for default)">
+                  <input value={form.tickSize} onChange={e => setF('tickSize', e.target.value)} type="number" min="0.01" step="0.01" placeholder={tickSize || '0.1'} style={inp} />
+                </Field>
+              </Row>
 
               {form.type === 'underlying' && (
                 <Row>

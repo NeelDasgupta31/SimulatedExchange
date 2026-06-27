@@ -62,9 +62,11 @@ class Exchange {
       market.revealed = false;
       market.trueValue = undefined;
       market.settlementValue = undefined;
+      const ts = market.tickSize || this.tickSize;
+      market.tickSize = ts;
 
       if (cfg.type === 'underlying') {
-        market.initialMidPrice = roundToTick(cfg.refPrice || 100, this.tickSize);
+        market.initialMidPrice = roundToTick(cfg.refPrice || 100, ts);
       } else if (COMBO_TYPES.has(cfg.type)) {
         const r1 = refPrices[cfg.leg1Id] || 0;
         const r2 = refPrices[cfg.leg2Id] || 0;
@@ -76,12 +78,11 @@ class Exchange {
           case 'min_of': ref = Math.min(r1, r2); break;
           default: ref = r1;
         }
-        market.initialMidPrice = roundToTick(Math.max(0, ref), this.tickSize);
+        market.initialMidPrice = roundToTick(Math.max(0, ref), ts);
       } else {
-        // Option/derivative — compute approximate fair value using refPrice
         const ulRef = refPrices[cfg.underlyingId] || 100;
         const approxFv = derivativeInitialMid(cfg, ulRef);
-        market.initialMidPrice = roundToTick(Math.max(0, approxFv), this.tickSize);
+        market.initialMidPrice = roundToTick(Math.max(0, approxFv), ts);
       }
 
       this.markets.set(cfg.id, market);
@@ -176,11 +177,28 @@ class Exchange {
 
   _doPlaceOrder(traderId, productId, side, price, volume) {
     const book = this.books.get(productId);
-    if (!book || !this.markets.get(productId)) return { error: 'Unknown product' };
+    const market = this.markets.get(productId);
+    if (!book || !market) return { error: 'Unknown product' };
     const pos = this._getOrCreatePosition(traderId, productId);
     if (side === 'BUY' && pos.net >= this.positionLimit) return { error: 'Position limit reached' };
     if (side === 'SELL' && pos.net <= -this.positionLimit) return { error: 'Position limit reached' };
-    const safePrice = Math.max(0, roundToTick(price, this.tickSize));
+    const tickSize = market.tickSize || this.tickSize;
+    const safePrice = Math.max(0, roundToTick(price, tickSize));
+
+    // Auto-cancel own orders that would cross the new order
+    const myOrders = book.getActiveOrdersForTrader(traderId);
+    if (side === 'SELL') {
+      // Cancel own highest BUY at or above this sell price
+      const crossingBuys = myOrders.filter(o => o.side === 'BUY' && o.price >= safePrice)
+        .sort((a, b) => b.price - a.price);
+      if (crossingBuys.length > 0) { book.cancelOrder(crossingBuys[0].id); return { trades: [], orderId: null, cancelled: true }; }
+    } else {
+      // Cancel own lowest SELL at or below this buy price
+      const crossingSells = myOrders.filter(o => o.side === 'SELL' && o.price <= safePrice)
+        .sort((a, b) => a.price - b.price);
+      if (crossingSells.length > 0) { book.cancelOrder(crossingSells[0].id); return { trades: [], orderId: null, cancelled: true }; }
+    }
+
     const result = book.addOrder(traderId, side, safePrice, Math.round(volume));
     this._applyTrades(result.trades);
     return result;
@@ -282,6 +300,7 @@ class Exchange {
       trueValue: m.revealed ? m.trueValue : undefined,
       settlementValue: m.revealed ? m.settlementValue : undefined,
       initialMidPrice: m.initialMidPrice,
+      tickSize: m.tickSize,
     }));
 
     const books = {};
