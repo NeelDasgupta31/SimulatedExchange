@@ -77,7 +77,7 @@ export function OrderBook({ market, book, position, onPlaceOrder, activeOrders =
     if (lastTradedPrice != null) return lastTradedPrice;
     if (bestBid != null && bestAsk != null) return (bestBid + bestAsk) / 2;
     if (bestBid != null) return bestBid + tickSize;
-    if (bestAsk != null) return bestAsk - tickSize;
+    if (bestAsk != null) return bestAsk;
     return null;
   }
 

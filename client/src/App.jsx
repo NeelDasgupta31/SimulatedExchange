@@ -35,7 +35,7 @@ function NameModal({ onConfirm }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
       <div style={{ background: BG2, border: `1px solid ${BORDER}`, borderRadius: 4, padding: 32, width: 320, textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}>
-        <div style={{ color: BLUE, fontSize: 18, fontWeight: 'bold', marginBottom: 6 }}>SimExchange-v2</div>
+        <div style={{ color: BLUE, fontSize: 18, fontWeight: 'bold', marginBottom: 6 }}>SimExchange-v4</div>
         <div style={{ color: DIM, fontSize: 11, marginBottom: 20 }}>Enter your name to join</div>
         <input
           autoFocus
@@ -136,7 +136,7 @@ export default function App() {
       {/* Top bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 14px', background: BG2, borderBottom: `1px solid ${BORDER}`, minHeight: 36, flexShrink: 0, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ color: BLUE, fontWeight: 'bold', fontSize: 14, letterSpacing: 1 }}>SimExchange-v2</span>
+          <span style={{ color: BLUE, fontWeight: 'bold', fontSize: 14, letterSpacing: 1 }}>SimExchange-v4</span>
           <span style={{ color: DIM, fontSize: 9 }}>{playerName}</span>
         </div>
 
