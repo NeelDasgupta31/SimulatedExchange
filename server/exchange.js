@@ -133,6 +133,15 @@ class Exchange {
       .map(m => `${m.name}: ${m.settlementValue?.toFixed(2)}`);
     this.addNews('SETTLED — ' + lines.join(' | '));
     this._broadcastLeaderboard();
+
+    // Push final positions with settlement-based PnL to every trader
+    for (const ws of this.listeners) {
+      if (!ws.traderId) continue;
+      try {
+        const s = this.getStateForTrader(ws.traderId);
+        ws.send(JSON.stringify({ type: 'state_update', myPositions: s.myPositions, myTrades: s.myTrades, activeOrders: s.activeOrders, totalPnl: s.totalPnl }));
+      } catch (e) {}
+    }
   }
 
   _getOrCreatePosition(traderId, productId) {
@@ -170,7 +179,7 @@ class Exchange {
       sp.avgSell = sp.totalSellRevenue / sp.sellVolume; sp.net -= volume;
 
       this.lastTradedPrice.set(productId, price);
-      this.recentTrades.unshift({ productId, price, volume, buyerId, sellerId, timestamp: Date.now() });
+      this.recentTrades.unshift({ productId, price, volume, buyerId, sellerId, timestamp: Date.now(), lastTradedPrice: price });
     }
     if (this.recentTrades.length > 500) this.recentTrades.length = 500;
   }
@@ -241,7 +250,7 @@ class Exchange {
   _broadcastBookUpdates() {
     for (const [marketId, book] of this.books) {
       const snap = book.getSnapshot();
-      this.broadcast({ type: 'book_update', productId: marketId, ...snap });
+      this.broadcast({ type: 'book_update', productId: marketId, lastTradedPrice: this.lastTradedPrice.get(marketId) ?? null, ...snap });
     }
   }
 
@@ -301,6 +310,7 @@ class Exchange {
       settlementValue: m.revealed ? m.settlementValue : undefined,
       initialMidPrice: m.initialMidPrice,
       tickSize: m.tickSize,
+      lastTradedPrice: this.lastTradedPrice.get(m.id) ?? null,
     }));
 
     const books = {};

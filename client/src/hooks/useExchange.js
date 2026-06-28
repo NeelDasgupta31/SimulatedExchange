@@ -45,12 +45,15 @@ export function useExchange() {
           books: { ...s.books, [msg.productId]: { bids: msg.bids, asks: msg.asks, lastTradedPrice: msg.lastTradedPrice ?? s.books[msg.productId]?.lastTradedPrice ?? null } },
         }));
         break;
-      case 'trade':
+      case 'trade': {
+        const t = msg.trade;
         setState(s => ({
           ...s,
-          recentTrades: [{ ...msg.trade, productName: msg.trade.productName || s.markets.find(m => m.id === msg.trade.productId)?.name }, ...s.recentTrades].slice(0, 100),
+          recentTrades: [{ ...t, productName: t.productName || s.markets.find(m => m.id === t.productId)?.name }, ...s.recentTrades].slice(0, 100),
+          books: { ...s.books, [t.productId]: { ...s.books[t.productId], lastTradedPrice: t.price } },
         }));
         break;
+      }
       case 'state_update':
         setState(s => ({ ...s, ...msg }));
         break;
