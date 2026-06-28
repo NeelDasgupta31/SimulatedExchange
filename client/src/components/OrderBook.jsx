@@ -67,7 +67,9 @@ export function OrderBook({ market, book, position, onPlaceOrder, activeOrders =
     hasScrolledRef.current = false;
   }
 
-  const { bids = [], asks = [], lastTradedPrice = null } = book || {};
+  const { bids = [], asks = [], lastTradedPrice: bookLtp = null } = book || {};
+  // book_update carries LTP for live updates; market carries it from init
+  const lastTradedPrice = bookLtp ?? market.lastTradedPrice ?? null;
   const bestBid = bids[0]?.price ?? null;
   const bestAsk = asks[0]?.price ?? null;
   const INV = Math.round(1 / tickSize);
