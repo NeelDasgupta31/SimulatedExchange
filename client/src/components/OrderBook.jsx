@@ -46,7 +46,8 @@ export function OrderBook({ market, book, position, onPlaceOrder, activeOrders =
   const [tickBounds, setTickBounds] = useState(null);
   const midRowRef = useRef(null);
   const scrollRef = useRef(null);
-  const prevMidRef = useRef(null);
+  const prevMidRef = useRef(null); // stores last known midTick for "freeze" behaviour
+  const hasScrolledRef = useRef(false); // tracks whether initial scroll happened
   const marketIdRef = useRef(null);
 
   if (!market) return null;
@@ -59,19 +60,30 @@ export function OrderBook({ market, book, position, onPlaceOrder, activeOrders =
     }
   }, [activeOrders, onCancel]);
 
-  const { bids = [], asks = [] } = book || {};
-  const bestBid = bids[0]?.price ?? null;
-  const bestAsk = asks[0]?.price ?? null;
-  const midNum = bestBid != null && bestAsk != null
-    ? (bestBid + bestAsk) / 2
-    : (market.initialMidPrice ?? 0);
-
-  const INV = Math.round(1 / tickSize);
-  const midTick = Math.round(midNum * INV);
-
+  // Reset state when market changes — must happen before any calculations
   if (marketIdRef.current !== market.id) {
     marketIdRef.current = market.id;
+    prevMidRef.current = null;
+    hasScrolledRef.current = false;
   }
+
+  const { bids = [], asks = [], lastTradedPrice = null } = book || {};
+  const bestBid = bids[0]?.price ?? null;
+  const bestAsk = asks[0]?.price ?? null;
+  const INV = Math.round(1 / tickSize);
+
+  // Black line priority: LTP > mid > bid+tick > ask-tick > freeze
+  function calcLinePrice() {
+    if (lastTradedPrice != null) return lastTradedPrice;
+    if (bestBid != null && bestAsk != null) return (bestBid + bestAsk) / 2;
+    if (bestBid != null) return bestBid + tickSize;
+    if (bestAsk != null) return bestAsk - tickSize;
+    return null;
+  }
+
+  const computedLine = calcLinePrice();
+  if (computedLine != null) prevMidRef.current = Math.round(computedLine * INV);
+  const midTick = prevMidRef.current ?? Math.round((market.initialMidPrice ?? 0) * INV);
 
   const bounds = tickBounds && marketIdRef.current === market.id
     ? tickBounds
@@ -111,10 +123,10 @@ export function OrderBook({ market, book, position, onPlaceOrder, activeOrders =
     }
   }
 
-  // Only auto-scroll on initial load (when market first appears)
+  // Auto-scroll only on initial load for this market
   useEffect(() => {
-    if (prevMidRef.current == null) {
-      prevMidRef.current = midTick;
+    if (!hasScrolledRef.current && midTick != null) {
+      hasScrolledRef.current = true;
       setTickBounds({ top: midTick + INIT_RANGE, bot: midTick - INIT_RANGE });
       requestAnimationFrame(() => {
         const el = midRowRef.current;

@@ -40,7 +40,10 @@ export function useExchange() {
         setState(s => ({ ...s, traderId: msg.traderId, ...msg.state }));
         break;
       case 'book_update':
-        setState(s => ({ ...s, books: { ...s.books, [msg.productId]: { bids: msg.bids, asks: msg.asks } } }));
+        setState(s => ({
+          ...s,
+          books: { ...s.books, [msg.productId]: { bids: msg.bids, asks: msg.asks, lastTradedPrice: msg.lastTradedPrice ?? s.books[msg.productId]?.lastTradedPrice ?? null } },
+        }));
         break;
       case 'trade':
         setState(s => ({
